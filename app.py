@@ -4,6 +4,9 @@ import os
 import time
 import hmac
 import hashlib
+import base64
+import io
+from PIL import Image, ImageOps
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(page_title="Llista de la Compra", page_icon="🛒", layout="centered")
@@ -23,7 +26,7 @@ st.markdown(
         min-width: 0 !important;
         width: auto !important;
     }
-    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) > div:last-child {
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) > div:not(:first-child) {
         flex: 0 0 auto !important;
         min-width: auto !important;
         width: auto !important;
@@ -143,6 +146,54 @@ def save_data(data):
     with open(FILE_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False)
 
+def encode_image(uploaded_file) -> str:
+    """Redimensiona i comprimeix la imatge pujada a Base64 perquè carregui ràpid."""
+    img = Image.open(uploaded_file)
+    img = ImageOps.exif_transpose(img)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    img.thumbnail((900, 900))
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=80, optimize=True)
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+# --- DIÀLEGS (FOTO EN GRAN I CONFIRMACIONS) ---
+@st.dialog("📷 Foto del producte", width="large")
+def obrir_foto_gran(nom: str, imatge_b64: str):
+    st.subheader(nom)
+    img_bytes = base64.b64decode(imatge_b64)
+    st.image(img_bytes, use_container_width=True)
+    if st.button("Tancar ✖️", use_container_width=True):
+        st.rerun()
+
+@st.dialog("⚠️ Confirmar eliminació")
+def confirmar_eliminar_item(index: int, nom: str):
+    st.write(f"Segur que vols eliminar **{nom}** de la llista?")
+    col_si, col_no = st.columns(2)
+    with col_si:
+        if st.button("Sí, eliminar 🗑️", type="primary", use_container_width=True):
+            items_actuals = load_data()
+            if 0 <= index < len(items_actuals) and items_actuals[index]["nom"] == nom:
+                items_actuals.pop(index)
+                save_data(items_actuals)
+            st.rerun()
+    with col_no:
+        if st.button("Cancel·lar", use_container_width=True):
+            st.rerun()
+
+@st.dialog("⚠️ Reiniciar la llista")
+def confirmar_reiniciar_llista():
+    st.write("Segur que vols esborrar **tots els productes** de la llista?")
+    col_si, col_no = st.columns(2)
+    with col_si:
+        if st.button("Sí, esborrar-ho tot ✅", type="primary", use_container_width=True):
+            save_data([])
+            st.rerun()
+    with col_no:
+        if st.button("Cancel·lar", use_container_width=True):
+            st.rerun()
+
 
 # --- INTERFÍCIE DE LA LLISTA ---
 st.title("🛒 Llista de la Compra Familiar")
@@ -150,7 +201,7 @@ st.title("🛒 Llista de la Compra Familiar")
 # Carregar la llista actual
 items = load_data()
 
-# Formulari per afegir productes
+# Formulari per afegir productes (amb foto opcional)
 with st.form("add_item_form", clear_on_submit=True):
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -158,18 +209,36 @@ with st.form("add_item_form", clear_on_submit=True):
     with col2:
         afegir = st.form_submit_button("Afegir ➕", use_container_width=True)
 
+    foto_opcional = st.file_uploader(
+        "📷 Foto del producte (opcional)",
+        type=["jpg", "jpeg", "png", "webp"],
+    )
+
     if afegir and nou_producte:
         nom_net = nou_producte.strip()
         noms_existents = [item["nom"].lower() for item in items]
         if nom_net and nom_net.lower() not in noms_existents:
-            items.append({"nom": nom_net, "comprat": False})
+            nou_item = {"nom": nom_net, "comprat": False}
+            if foto_opcional is not None:
+                nou_item["imatge"] = encode_image(foto_opcional)
+            items.append(nou_item)
             save_data(items)
             st.rerun()
 
 st.divider()
 
+# Si hi ha un diàleg pendent d'obrir, pausem el refresc de 3s durant aquesta execució perquè no es tanqui sol
+modal_pendent = st.session_state.pop("modal_pendent", None)
+if modal_pendent:
+    if modal_pendent["tipus"] == "foto":
+        obrir_foto_gran(modal_pendent["nom"], modal_pendent["imatge"])
+    elif modal_pendent["tipus"] == "eliminar":
+        confirmar_eliminar_item(modal_pendent["index"], modal_pendent["nom"])
+    elif modal_pendent["tipus"] == "reiniciar":
+        confirmar_reiniciar_llista()
+
 # Mostrar la llista amb actualització automàtica en temps real per a tots els usuaris
-@st.fragment(run_every="3s")
+@st.fragment(run_every="60s" if modal_pendent else "3s")
 def mostrar_llista():
     items_actuals = load_data()
     st.subheader("📝 Pendent de comprar:")
@@ -178,7 +247,12 @@ def mostrar_llista():
         st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
     else:
         for i, item in enumerate(items_actuals):
-            col_item, col_del = st.columns([10, 1], vertical_alignment="center")
+            te_foto = bool(item.get("imatge"))
+            if te_foto:
+                col_item, col_foto, col_del = st.columns([8, 2, 1], vertical_alignment="center")
+            else:
+                col_item, col_del = st.columns([10, 1], vertical_alignment="center")
+
             with col_item:
                 label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
                 marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
@@ -186,19 +260,32 @@ def mostrar_llista():
                     items_actuals[i]["comprat"] = marcat
                     save_data(items_actuals)
                     st.rerun()
+
+            if te_foto:
+                with col_foto:
+                    if st.button("📷 Veure foto", key=f"foto_{i}_{item['nom']}", help="Veure foto en gran"):
+                        st.session_state["modal_pendent"] = {
+                            "tipus": "foto",
+                            "nom": item["nom"],
+                            "imatge": item["imatge"],
+                        }
+                        st.rerun()
+
             with col_del:
                 if st.button("🗑️", key=f"del_{i}_{item['nom']}", help="Eliminar producte"):
-                    items_actuals.pop(i)
-                    save_data(items_actuals)
+                    st.session_state["modal_pendent"] = {
+                        "tipus": "eliminar",
+                        "index": i,
+                        "nom": item["nom"],
+                    }
                     st.rerun()
 
     st.divider()
 
-    # Botó per reiniciar la llista
+    # Botó per reiniciar la llista amb confirmació
     if items_actuals:
         if st.button("✅ Compra feta! Reiniciar la llista", type="primary", use_container_width=True):
-            save_data([])
-            st.success("Llista esborrada correctament!")
+            st.session_state["modal_pendent"] = {"tipus": "reiniciar"}
             st.rerun()
 
 mostrar_llista()
