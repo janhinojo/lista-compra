@@ -115,32 +115,37 @@ with st.form("add_item_form", clear_on_submit=True):
 
 st.divider()
 
-# Mostrar la llista
-st.subheader("📝 Pendent de comprar:")
+# Mostrar la llista amb actualització automàtica en temps real per a tots els usuaris
+@st.fragment(run_every="3s")
+def mostrar_llista():
+    items_actuals = load_data()
+    st.subheader("📝 Pendent de comprar:")
 
-if not items:
-    st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
-else:
-    for i, item in enumerate(items):
-        col_item, col_del = st.columns([6, 1])
-        with col_item:
-            label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
-            marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
-            if marcat != item["comprat"]:
-                items[i]["comprat"] = marcat
-                save_data(items)
-                st.rerun()
-        with col_del:
-            if st.button("🗑️", key=f"del_{i}_{item['nom']}", help="Eliminar producte"):
-                items.pop(i)
-                save_data(items)
-                st.rerun()
+    if not items_actuals:
+        st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
+    else:
+        for i, item in enumerate(items_actuals):
+            col_item, col_del = st.columns([6, 1])
+            with col_item:
+                label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
+                marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
+                if marcat != item["comprat"]:
+                    items_actuals[i]["comprat"] = marcat
+                    save_data(items_actuals)
+                    st.rerun()
+            with col_del:
+                if st.button("🗑️", key=f"del_{i}_{item['nom']}", help="Eliminar producte"):
+                    items_actuals.pop(i)
+                    save_data(items_actuals)
+                    st.rerun()
 
-st.divider()
+    st.divider()
 
-# Botó per reiniciar la llista
-if items:
-    if st.button("✅ Compra feta! Reiniciar la llista", type="primary", use_container_width=True):
-        save_data([])
-        st.success("Llista esborrada correctament!")
-        st.rerun()
+    # Botó per reiniciar la llista
+    if items_actuals:
+        if st.button("✅ Compra feta! Reiniciar la llista", type="primary", use_container_width=True):
+            save_data([])
+            st.success("Llista esborrada correctament!")
+            st.rerun()
+
+mostrar_llista()
