@@ -1,31 +1,69 @@
 import streamlit as st
 import json
 import os
+import time
+import hmac
+import hashlib
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(page_title="Llista de la Compra", page_icon="🛒", layout="centered")
 
-# --- SISTEMA DE CONTRASENYA ---
+# --- SISTEMA DE CONTRASENYA (SESSIÓ D'1 HORA) ---
+SESSION_DURATION = 3600  # 1 hora en segons
+
+def _create_session_token(secret: str, exp: int) -> str:
+    sig = hmac.new(secret.encode("utf-8"), str(exp).encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    return f"{exp}.{sig}"
+
+def _verify_session_token(token: str, secret: str) -> int:
+    try:
+        exp_str, sig = token.split(".", 1)
+        exp = int(exp_str)
+        expected_sig = hmac.new(secret.encode("utf-8"), exp_str.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+        if hmac.compare_digest(sig, expected_sig) and exp > time.time():
+            return exp
+    except Exception:
+        pass
+    return 0
+
 def check_password():
-    if "autenticat" not in st.session_state:
-        st.session_state["autenticat"] = False
+    secret = st.secrets["password_familia"]
+    now = time.time()
 
-    if not st.session_state["autenticat"]:
-        st.warning("🔒 Aquesta és una app privada.")
-        with st.form("login_form"):
-            password = st.text_input("Contrasenya de la família:", type="password")
-            entrar = st.form_submit_button("Entrar 🔓", use_container_width=True)
+    # Comprovar si la sessió en memòria encara és vàlida
+    if st.session_state.get("autenticat") and st.session_state.get("auth_exp", 0) > now:
+        return
 
-            if entrar:
-                # Comprovem si coincideix amb la contrasenya guardada als secrets
-                if password == st.secrets["password_familia"]:
-                    st.session_state["autenticat"] = True
-                    st.rerun()
-                else:
-                    st.error("Contrasenya incorrecta. Prova-ho de nou.")
+    # Comprovar si hi ha un token de sessió vàlid (< 1 hora) a l'URL per mantenir la sessió en recarregar
+    token = st.query_params.get("sessio", "")
+    if token:
+        exp = _verify_session_token(token, secret)
+        if exp > now:
+            st.session_state["autenticat"] = True
+            st.session_state["auth_exp"] = exp
+            return
+        else:
+            st.query_params.clear()
 
-        # Atura l'execució aquí si no està autenticat
-        st.stop()
+    st.session_state["autenticat"] = False
+    st.warning("🔒 Aquesta és una app privada.")
+    with st.form("login_form"):
+        password = st.text_input("Contrasenya de la família:", type="password")
+        entrar = st.form_submit_button("Entrar 🔓", use_container_width=True)
+
+        if entrar:
+            # Comprovem si coincideix amb la contrasenya guardada als secrets
+            if password == secret:
+                exp = int(time.time()) + SESSION_DURATION
+                st.session_state["autenticat"] = True
+                st.session_state["auth_exp"] = exp
+                st.query_params["sessio"] = _create_session_token(secret, exp)
+                st.rerun()
+            else:
+                st.error("Contrasenya incorrecta. Prova-ho de nou.")
+
+    # Atura l'execució aquí si no està autenticat
+    st.stop()
 
 # Cridem la funció de bloqueig abans de carregar res més
 check_password()
