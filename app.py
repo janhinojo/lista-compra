@@ -12,16 +12,18 @@ def check_password():
 
     if not st.session_state["autenticat"]:
         st.warning("🔒 Aquesta és una app privada.")
-        password = st.text_input("Contrasenya de la família:", type="password")
-        
-        if password:
-            # Comprovem si coincideix amb la contrasenya guardada als secrets
-            if password == st.secrets["password_familia"]:
-                st.session_state["autenticat"] = True
-                st.rerun()
-            else:
-                st.error("Contrasenya incorrecta. Prova-ho de nou.")
-        
+        with st.form("login_form"):
+            password = st.text_input("Contrasenya de la família:", type="password")
+            entrar = st.form_submit_button("Entrar 🔓", use_container_width=True)
+
+            if entrar:
+                # Comprovem si coincideix amb la contrasenya guardada als secrets
+                if password == st.secrets["password_familia"]:
+                    st.session_state["autenticat"] = True
+                    st.rerun()
+                else:
+                    st.error("Contrasenya incorrecta. Prova-ho de nou.")
+
         # Atura l'execució aquí si no està autenticat
         st.stop()
 
