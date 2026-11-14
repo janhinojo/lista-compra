@@ -8,6 +8,59 @@ import hashlib
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(page_title="Llista de la Compra", page_icon="🛒", layout="centered")
 
+# Estils CSS per a mòbil: mantenir el botó d'esborrar a la mateixa línia (petit) i fer el checkbox més gran
+st.markdown(
+    """
+    <style>
+    /* Mantenir cada fila de producte en una sola línia també al mòbil */
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) > div:first-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        width: auto !important;
+    }
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) > div:last-child {
+        flex: 0 0 auto !important;
+        min-width: auto !important;
+        width: auto !important;
+    }
+
+    /* Fer el checkbox i el text del producte més grans i fàcils de prémer */
+    [data-testid="stCheckbox"] label {
+        padding: 0.35rem 0 !important;
+        align-items: center !important;
+    }
+    [data-testid="stCheckbox"] label > span:first-child {
+        transform: scale(1.45);
+        margin-right: 0.65rem !important;
+        margin-left: 0.2rem !important;
+    }
+    [data-testid="stCheckbox"] label p {
+        font-size: 1.2rem !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Fer el botó d'eliminar més petit i discret */
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) [data-testid="stButton"] button {
+        padding: 0.1rem 0.4rem !important;
+        min-height: 1.75rem !important;
+        height: 1.75rem !important;
+        font-size: 0.8rem !important;
+        opacity: 0.65;
+    }
+    [data-testid="stHorizontalBlock"]:has([data-testid="stCheckbox"]) [data-testid="stButton"] button:hover {
+        opacity: 1;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --- SISTEMA DE CONTRASENYA (SESSIÓ D'1 HORA) ---
 SESSION_DURATION = 3600  # 1 hora en segons
 
@@ -125,7 +178,7 @@ def mostrar_llista():
         st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
     else:
         for i, item in enumerate(items_actuals):
-            col_item, col_del = st.columns([6, 1])
+            col_item, col_del = st.columns([10, 1], vertical_alignment="center")
             with col_item:
                 label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
                 marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
