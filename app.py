@@ -81,7 +81,7 @@ st.divider()
 st.subheader("📝 Pendent de comprar:")
 
 if not items:
-    st.info("La llista està buida. Sou uns cracks de l'estalvi o no teniu res per sopar.")
+    st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
 else:
     for i, item in enumerate(items):
         label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
