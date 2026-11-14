@@ -84,12 +84,19 @@ if not items:
     st.info("Ompliu la llista o el papa s'enfadara molt. 67.")
 else:
     for i, item in enumerate(items):
-        label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
-        marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
-        if marcat != item["comprat"]:
-            items[i]["comprat"] = marcat
-            save_data(items)
-            st.rerun()
+        col_item, col_del = st.columns([6, 1])
+        with col_item:
+            label = f"~~{item['nom']}~~" if item["comprat"] else item["nom"]
+            marcat = st.checkbox(label, value=item["comprat"], key=f"check_{i}_{item['nom']}")
+            if marcat != item["comprat"]:
+                items[i]["comprat"] = marcat
+                save_data(items)
+                st.rerun()
+        with col_del:
+            if st.button("🗑️", key=f"del_{i}_{item['nom']}", help="Eliminar producte"):
+                items.pop(i)
+                save_data(items)
+                st.rerun()
 
 st.divider()
 
