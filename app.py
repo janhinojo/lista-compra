@@ -60,11 +60,14 @@ st.title("🛒 Llista de la Compra Familiar")
 items = load_data()
 
 # Formulari per afegir productes
-col1, col2 = st.columns([3, 1])
-with col1:
-    nou_producte = st.text_input("Què falta a la nevera?", placeholder="Ex: Llet, Ous, Pomes...", label_visibility="collapsed")
-with col2:
-    if st.button("Afegir ➕", use_container_width=True):
+with st.form("add_item_form", clear_on_submit=True):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        nou_producte = st.text_input("Què falta a la nevera?", placeholder="Ex: Llet, Ous, Pomes...", label_visibility="collapsed")
+    with col2:
+        afegir = st.form_submit_button("Afegir ➕", use_container_width=True)
+
+    if afegir and nou_producte:
         nom_net = nou_producte.strip()
         noms_existents = [item["nom"].lower() for item in items]
         if nom_net and nom_net.lower() not in noms_existents:
